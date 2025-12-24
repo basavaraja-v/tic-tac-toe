@@ -82,6 +82,45 @@ export default function TicTacToe() {
     } catch { }
   }
 
+  function pauseAllAudio() {
+    bgmRef.current?.pause();
+    clickRef.current?.pause();
+    winRef.current?.pause();
+    loseRef.current?.pause();
+  }
+
+
+  // ===== AUTO MUTE ON TAB HIDE / MINIMIZE =====
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        pauseAllAudio();
+      } else if (soundOn && bgmRef.current) {
+        bgmRef.current.play().catch(() => { });
+      }
+    }
+
+    function handleBlur() {
+      pauseAllAudio();
+    }
+
+    function handleFocus() {
+      if (soundOn && bgmRef.current) {
+        bgmRef.current.play().catch(() => { });
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [soundOn]);
+
   useEffect(() => {
     if (!audioReady || !bgmRef.current) return;
     soundOn ? bgmRef.current.play() : bgmRef.current.pause();
