@@ -24,3 +24,24 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+:root {
+  --card-bg: #ffffff;
+  --card-border: #e5e7eb;
+  --tile-bg: #f3f4f6;
+  --tile-hover: #e5e7eb;
+  --muted-text: #6b7280;
+  --subtle-text: #9ca3af;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --card-bg: #202123;
+    --card-border: #2a2b32;
+    --tile-bg: #2a2b32;
+    --tile-hover: #3a3b42;
+    --muted-text: #a1a1aa;
+    --subtle-text: #71717a;
+  }
+}
