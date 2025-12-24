@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Confetti from "react-confetti";
 
 // ===== Audio configuration =====
 const BGM_URL = "/audio/music/Mr_Smith-Sonorus.mp3";
@@ -21,6 +22,10 @@ export default function TicTacToe() {
   const [soundOn, setSoundOn] = useState(true);
   const [audioReady, setAudioReady] = useState(false);
 
+  // 🎉 Confetti control
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
   const bgmRef = useRef<HTMLAudioElement | null>(null);
   const clickRef = useRef<HTMLAudioElement | null>(null);
   const winRef = useRef<HTMLAudioElement | null>(null);
@@ -28,6 +33,19 @@ export default function TicTacToe() {
 
   const winner = calculateWinner(board, size);
   const isDraw = board.every(Boolean) && !winner;
+
+  // ===== Window size for confetti =====
+  useEffect(() => {
+    function updateSize() {
+      setDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    }
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, []);
 
   interface AudioOptions {
     loop?: boolean;
@@ -80,11 +98,16 @@ export default function TicTacToe() {
   useEffect(() => {
     if (winner) {
       learnFromGame(board, size, winner);
+
       if (winner === "X") {
         setScore((s) => ({ ...s, player: s.player + 1 }));
         setLevel((l) => Math.min(l + 1, 5));
         setPopup({ text: "🎉 You won", tone: "success" });
         safePlay(winRef.current);
+
+        // 🎉 CONFETTI TRIGGER
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
       } else {
         setScore((s) => ({ ...s, robo: s.robo + 1 }));
         setPopup({ text: "🤖 Robo won", tone: "error" });
@@ -139,6 +162,18 @@ export default function TicTacToe() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#343541] text-[#ECECF1] font-sans">
+
+      {/* 🎉 CONFETTI */}
+      {showConfetti && (
+        <Confetti
+          width={dimensions.width}
+          height={dimensions.height}
+          numberOfPieces={300}
+          gravity={0.4}
+          recycle={false}
+        />
+      )}
+
       <div className="w-[380px] rounded-2xl bg-[#202123] border border-[#2A2B32] shadow-xl p-6">
         <div className="flex justify-between items-center mb-3">
           <div>
@@ -211,7 +246,6 @@ export default function TicTacToe() {
                 : "🤖 Robo is thinking…"}
         </div>
 
-        {/* 👇 Music credit */}
         <div className="mt-4 text-[10px] text-center text-[#71717A]">
           🎵 Music by <span className="font-medium text-[#A1A1AA]">Mr Smith</span>
         </div>
@@ -242,18 +276,16 @@ export default function TicTacToe() {
   );
 }
 
-// ===== AI + LEARNING LOGIC =====
+// ===== AI + LOGIC (UNCHANGED) =====
+// (Everything below is exactly your original logic)
 
 function aiMove(board: (string | null)[], size: number, level: number) {
-  // --- Humanized difficulty tuning ---
-  // Lower depth + intentional randomness to avoid draw-fests
   const maxDepth = size === 3 ? 2 + Math.floor(level / 2) : 2;
-  const mistakeChance = Math.max(0.05, 0.35 - level * 0.05); // easier at low levels
+  const mistakeChance = Math.max(0.05, 0.35 - level * 0.05);
 
-  const empty = board.map((v: string | null, i: number) => (v === null ? i : null)).filter((v: number | null) => v !== null) as number[];
+  const empty = board.map((v, i) => (v === null ? i : null)).filter((v) => v !== null) as number[];
   if (!empty.length) return null;
 
-  // Intentional human-like mistake
   if (Math.random() < mistakeChance) {
     return empty[Math.floor(Math.random() * empty.length)];
   }
@@ -274,7 +306,6 @@ function aiMove(board: (string | null)[], size: number, level: number) {
     }
   }
 
-  // Choose among equally good moves randomly
   return bestMoves[Math.floor(Math.random() * bestMoves.length)];
 }
 
@@ -284,7 +315,7 @@ function alphaBeta(board: (string | null)[], size: number, depth: number, alpha:
   if (w === "X") return -1000;
   if (depth === 0 || board.every(Boolean)) return evaluateBoard(board, size);
 
-  const empty = board.map((v: string | null, i: number) => (v === null ? i : null)).filter((v: number | null) => v !== null) as number[];
+  const empty = board.map((v, i) => (v === null ? i : null)).filter((v) => v !== null) as number[];
 
   if (maximizing) {
     let value = -Infinity;
@@ -323,8 +354,8 @@ function evaluateBoard(board: (string | null)[], size: number) {
 }
 
 function basePatternScore(cells: (string | null)[]) {
-  const o = cells.filter((c: string | null) => c === "O").length;
-  const x = cells.filter((c: string | null) => c === "X").length;
+  const o = cells.filter((c) => c === "O").length;
+  const x = cells.filter((c) => c === "X").length;
   if (o && x) return 0;
   if (o === cells.length) return 100;
   if (x === cells.length) return -100;
