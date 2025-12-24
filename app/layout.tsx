@@ -3,16 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { baseURL } from "@/baseUrl";
 
-declare global {
-  interface Window {
-    innerBaseUrl?: string;
-    openai?: {
-      openExternal: (options: { href: string }) => void;
-    };
-    __isChatGptApp?: boolean;
-  }
-}
-
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
