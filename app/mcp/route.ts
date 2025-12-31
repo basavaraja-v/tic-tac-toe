@@ -32,11 +32,11 @@ const handler = createMcpHandler(async (server) => {
   const html = await getAppsSdkCompatibleHtml(baseURL, "/");
 
   const contentWidget: ContentWidget = {
-    id: "show_content",
-    title: "Show Content",
+    id: "tic_tac_toe_widget",
+    title: "Tic Tac Toe Content Widget",
     templateUri: "ui://widget/content-template.html",
-    invoking: "Loading content...",
-    invoked: "Content loaded",
+    invoking: "Loading game...",
+    invoked: "game loaded",
     html: html,
     description: "Displays the homepage content",
     widgetDomain: "https://nextjs.org/docs",
