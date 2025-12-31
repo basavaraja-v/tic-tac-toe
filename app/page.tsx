@@ -1,440 +1,129 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Confetti from "react-confetti";
+import Image from "next/image";
+import Link from "next/link";
+import {
+  useWidgetProps,
+  useMaxHeight,
+  useDisplayMode,
+  useRequestDisplayMode,
+  useIsChatGptApp,
+} from "./hooks";
 
-// ===== Audio configuration =====
-const BGM_URL = "/audio/music/Mr_Smith-Sonorus.mp3";
-const CLICK_SFX = "/audio/music/k1.mp3";
-const WIN_SFX = "/audio/sfx/yay1.mp3";
-const LOSE_SFX = "/audio/sfx/haw1.mp3";
+export default function Home() {
+  const toolOutput = useWidgetProps<{
+    name?: string;
+    result?: { structuredContent?: { name?: string } };
+  }>();
+  const maxHeight = useMaxHeight() ?? undefined;
+  const displayMode = useDisplayMode();
+  const requestDisplayMode = useRequestDisplayMode();
+  const isChatGptApp = useIsChatGptApp();
 
-const GRID_OPTIONS = [3, 4, 5];
-const MEMORY_KEY = "ttt-ai-memory";
-
-export default function TicTacToe() {
-  const [size, setSize] = useState(3);
-  const [board, setBoard] = useState(Array(9).fill(null));
-  const [xIsNext, setXIsNext] = useState(true);
-  const [popup, setPopup] = useState<{ text: string; tone: "success" | "error" | "neutral" } | null>(null);
-  const [score, setScore] = useState({ player: 0, robo: 0, draw: 0 });
-  const [level, setLevel] = useState(1);
-  const [soundOn, setSoundOn] = useState(true);
-  const [audioReady, setAudioReady] = useState(false);
-
-  // 🎉 Confetti control
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-
-  const bgmRef = useRef<HTMLAudioElement | null>(null);
-  const clickRef = useRef<HTMLAudioElement | null>(null);
-  const winRef = useRef<HTMLAudioElement | null>(null);
-  const loseRef = useRef<HTMLAudioElement | null>(null);
-
-  const winner = calculateWinner(board, size);
-  const isDraw = board.every(Boolean) && !winner;
-
-  // ===== Window size for confetti =====
-  useEffect(() => {
-    function updateSize() {
-      setDimensions({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      });
-    }
-    updateSize();
-    window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
-  }, []);
-
-  interface AudioOptions {
-    loop?: boolean;
-    volume?: number;
-  }
-
-  function createAudio(src: string, { loop = false, volume = 1 }: AudioOptions = {}): HTMLAudioElement | null {
-    try {
-      const audio = document.createElement("audio");
-      audio.src = src;
-      audio.preload = "auto";
-      audio.loop = loop;
-      audio.volume = volume;
-      return audio;
-    } catch {
-      return null;
-    }
-  }
-
-  function initAudio() {
-    if (audioReady) return;
-    bgmRef.current = createAudio(BGM_URL, { loop: true, volume: 0.1 });
-    clickRef.current = createAudio(CLICK_SFX);
-    winRef.current = createAudio(WIN_SFX);
-    loseRef.current = createAudio(LOSE_SFX);
-    setAudioReady(true);
-  }
-
-  function safePlay(audio: HTMLAudioElement | null) {
-    if (!audio || !soundOn) return;
-    try {
-      audio.currentTime = 0;
-      audio.play().catch(() => { });
-    } catch { }
-  }
-
-  function pauseAllAudio() {
-    bgmRef.current?.pause();
-    clickRef.current?.pause();
-    winRef.current?.pause();
-    loseRef.current?.pause();
-  }
-
-
-  // ===== AUTO MUTE ON TAB HIDE / MINIMIZE =====
-  useEffect(() => {
-    function handleVisibilityChange() {
-      if (document.hidden) {
-        pauseAllAudio();
-      } else if (soundOn && bgmRef.current) {
-        bgmRef.current.play().catch(() => { });
-      }
-    }
-
-    function handleBlur() {
-      pauseAllAudio();
-    }
-
-    function handleFocus() {
-      if (soundOn && bgmRef.current) {
-        bgmRef.current.play().catch(() => { });
-      }
-    }
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [soundOn]);
-
-  useEffect(() => {
-    if (!audioReady || !bgmRef.current) return;
-    soundOn ? bgmRef.current.play() : bgmRef.current.pause();
-  }, [soundOn, audioReady]);
-
-  useEffect(() => {
-    setBoard(Array(size * size).fill(null));
-    setXIsNext(true);
-    setPopup(null);
-    setScore({ player: 0, robo: 0, draw: 0 });
-    setLevel(1);
-  }, [size]);
-
-  useEffect(() => {
-    if (winner) {
-      learnFromGame(board, size, winner);
-
-      if (winner === "X") {
-        setScore((s) => ({ ...s, player: s.player + 1 }));
-        setLevel((l) => Math.min(l + 1, 5));
-        setPopup({ text: "🎉 You won", tone: "success" });
-        safePlay(winRef.current);
-
-        // 🎉 CONFETTI TRIGGER
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 3000);
-      } else {
-        setScore((s) => ({ ...s, robo: s.robo + 1 }));
-        setPopup({ text: "🤖 Robo won", tone: "error" });
-        safePlay(loseRef.current);
-      }
-      autoReset();
-    } else if (isDraw) {
-      setScore((s) => ({ ...s, draw: s.draw + 1 }));
-      setPopup({ text: "🤝 Draw", tone: "neutral" });
-      autoReset();
-    }
-  }, [winner, isDraw]);
-
-  useEffect(() => {
-    if (!xIsNext && !winner) {
-      const move = aiMove(board, size, level);
-      if (move === null) return;
-      setTimeout(() => {
-        const next = [...board];
-        next[move] = "O";
-        setBoard(next);
-        setXIsNext(true);
-      }, 350);
-    }
-  }, [xIsNext, board, winner, level, size]);
-
-  function handleClick(i: number) {
-    initAudio();
-    if (board[i] || winner || !xIsNext) return;
-    safePlay(clickRef.current);
-    const next = [...board];
-    next[i] = "X";
-    setBoard(next);
-    setXIsNext(false);
-  }
-
-  function autoReset() {
-    setTimeout(() => {
-      setXIsNext(true);
-      setBoard(Array(size * size).fill(null));
-      setPopup(null);
-    }, 1200);
-  }
-
-  function resetAll() {
-    setBoard(Array(size * size).fill(null));
-    setXIsNext(true);
-    setScore({ player: 0, robo: 0, draw: 0 });
-    setLevel(1);
-    setPopup(null);
-  }
+  const name = toolOutput?.result?.structuredContent?.name || toolOutput?.name;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#343541] text-[#ECECF1] font-sans">
-
-      {/* 🎉 CONFETTI */}
-      {showConfetti && (
-        <Confetti
-          width={dimensions.width}
-          height={dimensions.height}
-          numberOfPieces={300}
-          gravity={0.4}
-          recycle={false}
-        />
-      )}
-
-      <div className="w-[380px] rounded-2xl bg-[#202123] border border-[#2A2B32] shadow-xl p-6">
-        <div className="flex justify-between items-center mb-3">
-          <div>
-            <h1 className="text-lg font-semibold">Tic Tac Toe</h1>
-            <p className="text-xs text-[#A1A1AA]">🤖 Robo Challenge</p>
-          </div>
-          <button
-            onClick={() => {
-              initAudio();
-              setSoundOn((s) => !s);
-            }}
-            className="text-xs px-2 py-1 rounded-md bg-[#2A2B32] border border-[#343541]"
-          >
-            {soundOn ? "🔊 Sound" : "🔇 Muted"}
-          </button>
-        </div>
-
-        <div className="mb-4 flex justify-center gap-2">
-          {GRID_OPTIONS.map((g) => (
-            <button
-              key={g}
-              onClick={() => setSize(g)}
-              className={`px-3 py-1 rounded-md text-xs border transition ${size === g
-                ? "bg-[#10A37F] text-black border-[#10A37F]"
-                : "bg-[#2A2B32] border-[#343541] hover:bg-[#3A3B42]"
-                }`}
-            >
-              {g}×{g}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex justify-between text-[11px] mb-3 text-[#A1A1AA]">
-          <span>😎 You <strong className="text-[#ECECF1]">{score.player}</strong></span>
-          <span>🤖 Robo <strong className="text-[#ECECF1]">{score.robo}</strong></span>
-          <span>🤝 Draw <strong className="text-[#ECECF1]">{score.draw}</strong></span>
-        </div>
-
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}>
-          {board.map((value, i) => (
-            <button
-              key={i}
-              onClick={() => handleClick(i)}
-              className="h-16 rounded-lg border transition flex items-center justify-center bg-[#2A2B32] border-[#343541] hover:bg-[#3A3B42]"
-            >
-              <span
-                className={
-                  value === "X"
-                    ? "text-[#19C37D] text-2xl font-semibold"
-                    : value === "O"
-                      ? "text-[#F97316] text-2xl font-semibold"
-                      : "text-transparent"
-                }
-              >
-                {value || "X"}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 text-xs text-center text-[#A1A1AA]">
-          {winner
-            ? winner === "X"
-              ? "🎉 You won"
-              : "🤖 Robo won"
-            : isDraw
-              ? "🤝 Draw"
-              : xIsNext
-                ? "👉 Your turn"
-                : "🤖 Robo is thinking…"}
-        </div>
-
-        <div className="mt-4 text-[10px] text-center text-[#71717A]">
-          🎵 Music by <span className="font-medium text-[#A1A1AA]">Mr Smith</span>
-        </div>
-
+    <div
+      className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center p-8 pb-20 gap-16 sm:p-20"
+      style={{
+        maxHeight,
+        height: displayMode === "fullscreen" ? maxHeight : undefined,
+      }}
+    >
+      {displayMode !== "fullscreen" && (
         <button
-          onClick={resetAll}
-          className="mt-6 w-full rounded-lg bg-[#10A37F] py-2 text-sm font-medium text-black hover:opacity-90 transition"
+          aria-label="Enter fullscreen"
+          className="fixed top-4 right-4 z-50 rounded-full bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 shadow-lg ring-1 ring-slate-900/10 dark:ring-white/10 p-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+          onClick={() => requestDisplayMode("fullscreen")}
         >
-          🔄 Reset game
-        </button>
-      </div>
-
-      {popup && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/70">
-          <div
-            className={`px-6 py-4 rounded-xl text-base font-medium bg-[#202123] border border-[#2A2B32] shadow-lg ${popup.tone === "success"
-              ? "text-[#19C37D]"
-              : popup.tone === "error"
-                ? "text-[#F97316]"
-                : "text-[#ECECF1]"
-              }`}
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            viewBox="0 0 24 24"
+            aria-hidden="true"
           >
-            {popup.text}
-          </div>
-        </div>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+            />
+          </svg>
+        </button>
       )}
+      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+        {!isChatGptApp && (
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 w-full">
+            <div className="flex items-center gap-3">
+              <svg
+                className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-blue-900 dark:text-blue-100 font-medium">
+                  This app relies on data from a ChatGPT session.
+                </p>
+                <p className="text-sm text-blue-900 dark:text-blue-100 font-medium">
+                  No{" "}
+                  <a
+                    href="https://developers.openai.com/apps-sdk/reference"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:no-underline font-mono bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded"
+                  >
+                    window.openai
+                  </a>{" "}
+                  property detected
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        <Image
+          className="dark:invert"
+          src="/next.svg"
+          alt="Next.js logo"
+          width={180}
+          height={38}
+          priority
+        />
+        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
+          <li className="mb-2 tracking-[-.01em]">
+            Welcome to the ChatGPT Apps SDK Next.js Starter
+          </li>
+          <li className="mb-2 tracking-[-.01em]">
+            Name returned from tool call: {name ?? "..."}
+          </li>
+          <li className="mb-2 tracking-[-.01em]">MCP server path: /mcp</li>
+        </ol>
+
+        <div className="flex gap-4 items-center flex-col sm:flex-row">
+          <Link
+            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
+            prefetch={false}
+            href="/custom-page"
+          >
+            Visit another page
+          </Link>
+          <a
+            href="https://vercel.com/templates/ai/chatgpt-app-with-next-js"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            Deploy on Vercel
+          </a>
+        </div>
+      </main>
     </div>
   );
-}
-
-// ===== AI + LOGIC (UNCHANGED) =====
-// (Everything below is exactly your original logic)
-
-function aiMove(board: (string | null)[], size: number, level: number) {
-  const maxDepth = size === 3 ? 2 + Math.floor(level / 2) : 2;
-  const mistakeChance = Math.max(0.05, 0.35 - level * 0.05);
-
-  const empty = board.map((v, i) => (v === null ? i : null)).filter((v) => v !== null) as number[];
-  if (!empty.length) return null;
-
-  if (Math.random() < mistakeChance) {
-    return empty[Math.floor(Math.random() * empty.length)];
-  }
-
-  let bestScore = -Infinity;
-  let bestMoves: number[] = [];
-
-  for (let i of empty) {
-    const next = [...board];
-    next[i] = "O";
-    const score = alphaBeta(next, size, maxDepth, -Infinity, Infinity, false);
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMoves = [i];
-    } else if (score === bestScore) {
-      bestMoves.push(i);
-    }
-  }
-
-  return bestMoves[Math.floor(Math.random() * bestMoves.length)];
-}
-
-function alphaBeta(board: (string | null)[], size: number, depth: number, alpha: number, beta: number, maximizing: boolean) {
-  const w = calculateWinner(board, size);
-  if (w === "O") return 1000;
-  if (w === "X") return -1000;
-  if (depth === 0 || board.every(Boolean)) return evaluateBoard(board, size);
-
-  const empty = board.map((v, i) => (v === null ? i : null)).filter((v) => v !== null) as number[];
-
-  if (maximizing) {
-    let value = -Infinity;
-    for (let i of empty) {
-      const next = [...board];
-      next[i] = "O";
-      value = Math.max(value, alphaBeta(next, size, depth - 1, alpha, beta, false));
-      alpha = Math.max(alpha, value);
-      if (alpha >= beta) break;
-    }
-    return value;
-  } else {
-    let value = Infinity;
-    for (let i of empty) {
-      const next = [...board];
-      next[i] = "X";
-      value = Math.min(value, alphaBeta(next, size, depth - 1, alpha, beta, true));
-      beta = Math.min(beta, value);
-      if (beta <= alpha) break;
-    }
-    return value;
-  }
-}
-
-function evaluateBoard(board: (string | null)[], size: number) {
-  const lines = getAllLines(size);
-  const memory = loadMemory();
-  let score = 0;
-
-  for (let line of lines) {
-    const cells = line.map((i) => board[i]);
-    const key = cells.map((c) => c || "_").join("");
-    score += basePatternScore(cells) + (memory[key] || 0);
-  }
-  return score;
-}
-
-function basePatternScore(cells: (string | null)[]) {
-  const o = cells.filter((c) => c === "O").length;
-  const x = cells.filter((c) => c === "X").length;
-  if (o && x) return 0;
-  if (o === cells.length) return 100;
-  if (x === cells.length) return -100;
-  if (o) return Math.pow(3, o);
-  if (x) return -Math.pow(3, x);
-  return 0;
-}
-
-function learnFromGame(board: (string | null)[], size: number, winner: string) {
-  const memory = loadMemory();
-  const lines = getAllLines(size);
-
-  for (let line of lines) {
-    const key = line.map((i) => board[i] || "_").join("");
-    if (winner === "O") memory[key] = (memory[key] || 0) + 1;
-    if (winner === "X") memory[key] = (memory[key] || 0) - 1;
-  }
-  localStorage.setItem(MEMORY_KEY, JSON.stringify(memory));
-}
-
-function loadMemory() {
-  return JSON.parse(localStorage.getItem(MEMORY_KEY) || "{}");
-}
-
-function getAllLines(size: number) {
-  const lines: number[][] = [];
-  for (let i = 0; i < size; i++) {
-    lines.push([...Array(size)].map((_, j) => i * size + j));
-    lines.push([...Array(size)].map((_, j) => j * size + i));
-  }
-  lines.push([...Array(size)].map((_, i) => i * size + i));
-  lines.push([...Array(size)].map((_, i) => i * size + (size - 1 - i)));
-  return lines;
-}
-
-function calculateWinner(board: (string | null)[], size: number) {
-  const lines = getAllLines(size);
-  for (let line of lines) {
-    const first = board[line[0]];
-    if (first && line.every((idx) => board[idx] === first)) return first;
-  }
-  return null;
 }
