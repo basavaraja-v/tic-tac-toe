@@ -118,3 +118,14 @@ export async function POST(req: Request) {
   }
   return handler(req as unknown as Request);
 }
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+      "Access-Control-Allow-Headers": "*",
+    },
+  });
+}
