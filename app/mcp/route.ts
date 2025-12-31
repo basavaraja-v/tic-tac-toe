@@ -99,33 +99,4 @@ const handler = createMcpHandler(async (server) => {
 });
 
 export const GET = handler;
-
-export async function POST(req: Request) {
-  const accept = req.headers.get("accept") || "";
-  if (
-    !accept.includes("application/json") ||
-    !accept.includes("text/event-stream")
-  ) {
-    const headers = new Headers(req.headers);
-    headers.set("accept", "application/json, text/event-stream");
-    const body = await req.arrayBuffer();
-    const forwarded = new Request(req.url, {
-      method: req.method,
-      headers,
-      body: body.byteLength ? body : undefined,
-    });
-    return handler(forwarded as unknown as Request);
-  }
-  return handler(req as unknown as Request);
-}
-
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-      "Access-Control-Allow-Headers": "*",
-    },
-  });
-}
+export const POST = handler;
