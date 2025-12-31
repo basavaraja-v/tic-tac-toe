@@ -80,7 +80,7 @@ function NextChatSDKBootstrap({ baseUrl }: { baseUrl: string }) {
               originalPushState.call(history, unused, href);
             };
 
-            const appOrigin = new URL(baseUrl ?? "").origin;
+            const appOrigin = new URL(baseUrl).origin;
             const isInIframe = window.self !== window.top;
 
             window.addEventListener(
@@ -133,7 +133,7 @@ function NextChatSDKBootstrap({ baseUrl }: { baseUrl: string }) {
                 }
 
                 if (url.origin === window.location.origin) {
-                  const newUrl = new URL(baseUrl ?? "");
+                  const newUrl = new URL(baseUrl);
                   newUrl.pathname = url.pathname;
                   newUrl.search = url.search;
                   newUrl.hash = url.hash;
